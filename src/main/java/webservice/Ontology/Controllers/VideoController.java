@@ -9,10 +9,11 @@ import webservice.Ontology.Models.Tag;
 import webservice.Ontology.Models.Video;
 import webservice.Ontology.Services.VideoService;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
-@RequestMapping("/videotagger")
+@CrossOrigin(origins = "*")
 public class VideoController {
 
 
@@ -27,12 +28,17 @@ public class VideoController {
 
         List<VideoTaggedDTO> videos = videoService.getVideosList();
 
-        return ResponseEntity.ok(videos);
+        return ResponseEntity.ok(videos != null ? videos : Collections.emptyList());
     }
 
     @GetMapping("/videos/{tag}")
     public ResponseEntity<List<VideoTaggedDTO>> getVideosByTag(@PathVariable String tag){
        List<VideoTaggedDTO> videos = videoService.getVideosListByTag(tag);
+
+       if (videos == null || videos.isEmpty()){
+           return ResponseEntity.notFound().build();
+       }
+
        return ResponseEntity.ok(videos);
     }
 

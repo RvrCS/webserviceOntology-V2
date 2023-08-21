@@ -7,6 +7,7 @@ import org.apache.jena.rdf.model.Literal;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.util.FileManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import webservice.Ontology.DTOs.VideoTaggedDTO;
 import webservice.Ontology.Models.Tag;
 import webservice.Ontology.Models.TagTimestamp;
@@ -14,8 +15,13 @@ import webservice.Ontology.Models.Video;
 import webservice.Ontology.Utils.Constants;
 import webservice.Ontology.Utils.FormatOntologyString;
 
+import javax.servlet.Servlet;
+import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,11 +31,15 @@ import java.util.Map;
 public class JenaVideoRepository implements VideoRepository {
 
 
+
     private RepositoryConfig repositoryConfig;
 
     private OntModel model;
 
     private FormatOntologyString formatter;
+
+    private String ontologyFilePath;
+
 
     public JenaVideoRepository() {
         repositoryConfig = RepositoryConfig.getInstance();
@@ -97,12 +107,7 @@ public class JenaVideoRepository implements VideoRepository {
 
     @Override
     public void createVideo(Video video) {
-        try {
-            InputStream in = FileManager.get().open(Constants.ONTOLOGY_PATH.getValue());
-            model.read(in, null);
-        } catch (Exception e) {
-            System.out.println("Error al cargar la ontología: " + e.getMessage());
-        }
+        String ontologyFilePath = getClass().getClassLoader().getResource(Constants.ONTOLOGY_PATH.getValue()).getFile();
 
         String ns = Constants.ONTOLOGY_NAMESPACE.getValue();
         Individual videoIndividual = model.createIndividual(ns + video.getArtifactName(), model.getResource(ns + "Videos"));
@@ -133,7 +138,7 @@ public class JenaVideoRepository implements VideoRepository {
         videoIndividual.addProperty(model.getProperty(ns + "hasTaggedBy"), videohasTaggedByResource);
 
         try {
-            FileOutputStream out = new FileOutputStream(Constants.ONTOLOGY_PATH.getValue());
+            OutputStream out = new FileOutputStream(ontologyFilePath);
             model.write(out, "RDF/XML-ABBREV");
             System.out.println("Ontología guardada en: " + Constants.ONTOLOGY_PATH.getValue());
             out.close();
