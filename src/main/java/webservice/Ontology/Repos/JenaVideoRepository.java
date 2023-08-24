@@ -8,6 +8,7 @@ import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.util.FileManager;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
 import webservice.Ontology.DTOs.VideoTaggedDTO;
 import webservice.Ontology.Models.Tag;
 import webservice.Ontology.Models.TagTimestamp;
@@ -28,28 +29,24 @@ import java.util.List;
 import java.util.Map;
 
 
+@Repository
 public class JenaVideoRepository implements VideoRepository {
 
 
-
+    @Autowired
     private RepositoryConfig repositoryConfig;
 
-    private OntModel model;
 
+    @Autowired
     private FormatOntologyString formatter;
 
-    private String ontologyFilePath;
 
-
-    public JenaVideoRepository() {
-        repositoryConfig = RepositoryConfig.getInstance();
-        formatter = new FormatOntologyString();
-        model = repositoryConfig.getOntModel();
-    }
 
     @Override
     public List<VideoTaggedDTO> findVideos() {
         List<VideoTaggedDTO> videosList = new ArrayList<>();
+
+        OntModel model = repositoryConfig.getOntModel();
 
         model.read(Constants.ONTOLOGY_PATH.getValue());
 
@@ -108,6 +105,7 @@ public class JenaVideoRepository implements VideoRepository {
     @Override
     public void createVideo(Video video) {
         String ontologyFilePath = getClass().getClassLoader().getResource(Constants.ONTOLOGY_PATH.getValue()).getFile();
+        OntModel model = repositoryConfig.getOntModel();
 
         String ns = Constants.ONTOLOGY_NAMESPACE.getValue();
         Individual videoIndividual = model.createIndividual(ns + video.getArtifactName(), model.getResource(ns + "Videos"));
@@ -153,6 +151,8 @@ public class JenaVideoRepository implements VideoRepository {
         String timestamp = tag.getTimestamp().toString();
         String artifactLocation = tag.getUrl();
 
+        OntModel model = repositoryConfig.getOntModel();
+
         try {
             InputStream in = FileManager.get().open(Constants.ONTOLOGY_PATH.getValue());
             model.read(in, null);
@@ -190,6 +190,8 @@ public class JenaVideoRepository implements VideoRepository {
     @Override
     public List<VideoTaggedDTO> findVideosByTag(String tag) {
         List<VideoTaggedDTO> videosList = new ArrayList<>();
+
+        OntModel model = repositoryConfig.getOntModel();
 
         model.read(Constants.ONTOLOGY_PATH.getValue());
 

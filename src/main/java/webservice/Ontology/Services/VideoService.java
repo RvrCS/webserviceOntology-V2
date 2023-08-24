@@ -1,5 +1,6 @@
 package webservice.Ontology.Services;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import webservice.Ontology.DTOs.VideoTaggedDTO;
 import webservice.Ontology.Models.Tag;
@@ -12,12 +13,9 @@ import java.util.List;
 public class VideoService {
 
 
-
+    @Autowired
     private JenaVideoRepository jenaVideoRepository;
 
-    public VideoService(){
-        jenaVideoRepository = new JenaVideoRepository();
-    }
 
     public List<VideoTaggedDTO> getVideosList(){
 
