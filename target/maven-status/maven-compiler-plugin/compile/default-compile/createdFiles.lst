@@ -1,0 +1,15 @@
+webservice\Ontology\Models\TagTimestamp.class
+webservice\Ontology\DTOs\VideoTaggedDTO.class
+webservice\Ontology\Models\Video.class
+webservice\Ontology\Repos\JenaProgrammerRepository.class
+webservice\Ontology\Repos\JenaVideoRepository.class
+webservice\Ontology\Utils\Constants.class
+webservice\Ontology\Repos\ProgrammerRepository.class
+webservice\Ontology\Utils\FormatOntologyString.class
+webservice\Ontology\OntologyApplication.class
+webservice\Ontology\Services\ProgrammerService.class
+webservice\Ontology\Models\Tag.class
+webservice\Ontology\Models\Programmer.class
+webservice\Ontology\Services\VideoService.class
+webservice\Ontology\Controllers\VideoController.class
+webservice\Ontology\Repos\VideoRepository.class
