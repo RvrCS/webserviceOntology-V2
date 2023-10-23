@@ -2,12 +2,13 @@ package webservice.Ontology.Repos;
 
 import org.apache.jena.ontology.Individual;
 import org.apache.jena.ontology.OntModel;
+import org.apache.jena.ontology.OntModelSpec;
 import org.apache.jena.query.*;
-import org.apache.jena.rdf.model.Literal;
-import org.apache.jena.rdf.model.RDFNode;
-import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.*;
 import org.apache.jena.util.FileManager;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Repository;
 import webservice.Ontology.DTOs.VideoTaggedDTO;
 import webservice.Ontology.Models.Tag;
@@ -16,13 +17,8 @@ import webservice.Ontology.Models.Video;
 import webservice.Ontology.Utils.Constants;
 import webservice.Ontology.Utils.FormatOntologyString;
 
-import javax.servlet.Servlet;
-import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,27 +28,36 @@ import java.util.Map;
 @Repository
 public class JenaVideoRepository implements VideoRepository {
 
-
-    @Autowired
-    private RepositoryConfig repositoryConfig;
-
+    // Constants
+    public static final String videoUri = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#Videos";
+    public static final String locationProperty = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactLocation";
+    public static final String tagProperty = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactTag";
 
     @Autowired
     private FormatOntologyString formatter;
 
+    @Value("${ontology.owl.file-path}")
+    private String ontologyFilePath;
 
+    private OntModel model;
+
+    private OntModel getModel() {
+        if (model == null) {
+            model = ModelFactory.createOntologyModel(OntModelSpec.OWL_LITE_MEM);
+            try (InputStream in = new FileInputStream(ontologyFilePath)) {
+                model.read(in, null);
+            } catch (Exception e) {
+                throw new RuntimeException("Error while reading ontology: " + e.getMessage());
+            }
+        }
+        return model;
+    }
 
     @Override
     public List<VideoTaggedDTO> findVideos() {
         List<VideoTaggedDTO> videosList = new ArrayList<>();
 
-        OntModel model = repositoryConfig.getOntModel();
-
-        model.read(Constants.ONTOLOGY_PATH.getValue());
-
-        String videoUri = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#Videos";
-        String locationProperty = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactLocation";
-        String tagProperty = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactTag";
+        OntModel model = getModel();
 
         String queryString = String.format("SELECT ?artifactLocation ?artifactTag WHERE { " +
                 "?video a <%s> . " +
@@ -95,26 +100,36 @@ public class JenaVideoRepository implements VideoRepository {
                 }
             }
             videosList.addAll(videosMap.values());
+            results.close();
         } catch (Exception e) {
             throw new RuntimeException("Error while finding videos: " + e.getMessage(), e);
         }
-
         return videosList;
     }
 
     @Override
     public void createVideo(Video video) {
-        String ontologyFilePath = getClass().getClassLoader().getResource(Constants.ONTOLOGY_PATH.getValue()).getFile();
-        OntModel model = repositoryConfig.getOntModel();
+
+        OntModel model = getModel();
 
         String ns = Constants.ONTOLOGY_NAMESPACE.getValue();
-        Individual videoIndividual = model.createIndividual(ns + video.getArtifactName(), model.getResource(ns + "Videos"));
+
+
+        String videoUri = ns + video.getArtifactLocation();
+        Individual videoIndividual = model.createIndividual(videoUri, model.getResource(ns + "Videos"));
+
+
+        StmtIterator tagStmts = videoIndividual.listProperties(model.getProperty(ns + "artifactTag"));
+        while (tagStmts.hasNext()) {
+            Statement stmt = tagStmts.next();
+            stmt.remove();
+        }
+
         videoIndividual.addProperty(model.getProperty(ns + "artifactLocation"), video.getArtifactLocation());
         videoIndividual.addProperty(model.getProperty(ns + "artifactFormat"), video.getArtifactFormat());
 
         for (Tag tag : video.getArtifactTags()) {
             String artifactTagWithTimestamp = tag.getArtifactTag().toLowerCase() + " / " + tag.getTimestamp();
-//            Resource tagResource = model.createResource(ns + tag.getArtifactTag().toLowerCase());
             videoIndividual.addProperty(model.getProperty(ns + "artifactTag"), artifactTagWithTimestamp);
         }
 
@@ -135,14 +150,13 @@ public class JenaVideoRepository implements VideoRepository {
         Resource videohasTaggedByResource = model.createResource(ns + video.getHasTaggedBy());
         videoIndividual.addProperty(model.getProperty(ns + "hasTaggedBy"), videohasTaggedByResource);
 
-        try {
-            OutputStream out = new FileOutputStream(ontologyFilePath);
+        try (FileOutputStream out = new FileOutputStream(ontologyFilePath)){
             model.write(out, "RDF/XML-ABBREV");
-            System.out.println("Ontología guardada en: " + Constants.ONTOLOGY_PATH.getValue());
-            out.close();
+            System.out.println("Ontología guardada en: " + ontologyFilePath);
         } catch (Exception e) {
             System.out.println("Error al guardar la ontología: " + e.getMessage());
         }
+
     }
 
     @Override
@@ -151,39 +165,38 @@ public class JenaVideoRepository implements VideoRepository {
         String timestamp = tag.getTimestamp().toString();
         String artifactLocation = tag.getUrl();
 
-        OntModel model = repositoryConfig.getOntModel();
+        OntModel model = getModel();
 
-        try {
-            InputStream in = FileManager.get().open(Constants.ONTOLOGY_PATH.getValue());
-            model.read(in, null);
+        String ns = Constants.ONTOLOGY_NAMESPACE.getValue();
 
-            String ns = Constants.ONTOLOGY_NAMESPACE.getValue();
+        String queryString = "SELECT ?video WHERE { "
+                + "?video a <http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#Videos> . "
+                + "?video <http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactLocation> ?artifactLocation . "
+                + "FILTER (?artifactLocation = \"" + artifactLocation + "\")"
+                + "}";
+        Query query = QueryFactory.create(queryString);
+        try (QueryExecution exec = QueryExecutionFactory.create(query, model)) {
+            ResultSet results = exec.execSelect();
+            if (results.hasNext()) {
+                QuerySolution solution = results.nextSolution();
+                Resource videoResource = solution.getResource("video");
+                Individual videoIndividual = model.getIndividual(videoResource.getURI());
 
-            String queryString = "SELECT ?video WHERE { "
-                    + "?video a <http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#Videos> . "
-                    + "?video <http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactLocation> ?artifactLocation . "
-                    + "FILTER (?artifactLocation = \"" + artifactLocation + "\")"
-                    + "}";
-            Query query = QueryFactory.create(queryString);
-            try (QueryExecution exec = QueryExecutionFactory.create(query, model)) {
-                ResultSet results = exec.execSelect();
-                if (results.hasNext()) {
-                    QuerySolution solution = results.nextSolution();
-                    Resource videoResource = solution.getResource("video");
-                    Individual videoIndividual = model.getIndividual(videoResource.getURI());
+                videoIndividual.addProperty(model.createProperty(ns + "artifactTag"), (artifactTag + " / " + timestamp));
 
-                    videoIndividual.addProperty(model.createProperty(ns + "artifactTag"), (artifactTag + " / " + timestamp));
-
-                    FileOutputStream out = new FileOutputStream(Constants.ONTOLOGY_PATH.getValue());
+                try (FileOutputStream out = new FileOutputStream(ontologyFilePath)) {
                     model.write(out, "RDF/XML-ABBREV");
-                    System.out.println("Ontología actualizada y guardada en: " + Constants.ONTOLOGY_PATH.getValue());
-                    out.close();
-                } else {
-                    System.out.println("El Video no existe en la ontología.");
+                    System.out.println("Ontología actualizada y guardada en: " + ontologyFilePath);
+                } catch (Exception e) {
+                    System.out.println("Error al guardar la ontología: " + e.getMessage());
                 }
+
+            } else {
+                System.out.println("El Video no existe en la ontología.");
             }
+            results.close();
         } catch (Exception e) {
-            System.out.println("Error al cargar o guardar la ontología: " + e.getMessage());
+            System.out.println("Error al cargar la ontología: " + e.getMessage());
         }
     }
 
@@ -191,20 +204,16 @@ public class JenaVideoRepository implements VideoRepository {
     public List<VideoTaggedDTO> findVideosByTag(String tag) {
         List<VideoTaggedDTO> videosList = new ArrayList<>();
 
-        OntModel model = repositoryConfig.getOntModel();
+        OntModel model = getModel();
 
-        model.read(Constants.ONTOLOGY_PATH.getValue());
 
-        String videosClass = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#Videos";
-        String locationProperty = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactLocation";
-        String tagProperty = "http://www.semanticweb.org/jose/ontologies/2019/4/untitled-ontology-24#artifactTag";
 
         String queryString = String.format("SELECT ?artifactLocation ?artifactTag WHERE { " +
                 "?video a <%s> . " +
                 "?video <%s> ?artifactLocation . " +
                 "?video <%s> ?artifactTag . " +
                 "FILTER (CONTAINS(?artifactTag, \"%s\"))" +
-                "}", videosClass, locationProperty, tagProperty, tag.toLowerCase());
+                "}", videoUri, locationProperty, tagProperty, tag.toLowerCase());
 
         Query query = QueryFactory.create(queryString);
         try (QueryExecution exec = QueryExecutionFactory.create(query, model)) {
@@ -234,6 +243,7 @@ public class JenaVideoRepository implements VideoRepository {
                     videosList.add(videoTaggedDTO);
                 }
             }
+            results.close();
         } catch (Exception e) {
             throw new RuntimeException("Error while finding videos by tag: " + e.getMessage(), e);
         }

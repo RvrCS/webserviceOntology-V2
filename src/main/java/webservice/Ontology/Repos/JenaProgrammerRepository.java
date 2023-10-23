@@ -15,17 +15,13 @@ import java.util.List;
 
 public class JenaProgrammerRepository implements ProgrammerRepository{
 
-    private RepositoryConfig repositoryConfig;
+
 
     private OntModel model;
 
     private FormatOntologyString formatter;
 
-    public JenaProgrammerRepository(){
-        repositoryConfig = RepositoryConfig.getInstance();
-        formatter = new FormatOntologyString();
-        model = repositoryConfig.getOntModel();
-    }
+
     @Override
     public List<Programmer> findProgrammers() {
         List<Programmer> programmers = new ArrayList<>();
